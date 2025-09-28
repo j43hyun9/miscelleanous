@@ -30,6 +30,7 @@ class RealTimeTradeMonitor:
         self.is_connected = False
         self.total_volume_1min = 0
         self.trade_count_1min = 0
+        self.alert_triggered = False  # 중복 알림 방지
 
     async def connect(self):
         """WebSocket 연결"""
@@ -72,6 +73,10 @@ class RealTimeTradeMonitor:
             self.total_volume_1min -= old_trade['volume_krw']
             self.trade_count_1min -= 1
 
+        # 거래량이 임계값 이하로 떨어지면 알림 상태 리셋
+        if self.total_volume_1min < ALERT_VOLUME_KRW:
+            self.alert_triggered = False
+
     def add_trade(self, trade_data):
         """새로운 거래 추가"""
         current_time = datetime.now()
@@ -102,20 +107,21 @@ class RealTimeTradeMonitor:
         return False
 
     def print_status(self, latest_trade=None):
-        """현재 상태 출력"""
+        """현재 상태 출력 - 체결가가 나타날 때만 출력"""
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # 체결가가 나타날 때만 출력
         if latest_trade:
-            print(f"[{current_time}] 💰 체결: {latest_trade['price']:,.0f} KRW × {latest_trade['qty']:.4f} = {latest_trade['volume_krw']:,.0f} KRW")
+            print(f"[{current_time}] 💰 체결: {latest_trade['price']:,.0f} KRW × {latest_trade['qty']:.4f} = {latest_trade['volume_krw']:,.0f} KRW (누적: {self.total_volume_1min:,.0f} KRW)")
 
-        if self.check_volume_alert():
-            print(f"[{current_time}] 🚨 대량 거래 감지! 1분간 누적 거래량: {self.total_volume_1min:,.0f} KRW")
+        # 1천만원 넘을 때만 알림 (중복 방지)
+        if self.check_volume_alert() and not self.alert_triggered:
+            self.alert_triggered = True  # 알림 상태 설정
+            print(f"[{current_time}] 🚨 대량 거래 감지! 1분간 체결액 총합: {self.total_volume_1min:,.0f} KRW")
             print(f"                   📊 체결 건수: {self.trade_count_1min}건")
+            print(f"                   🎯 임계값 {ALERT_VOLUME_KRW:,} KRW 초과!")
+            print("="*60)
             alarm_player.play_alarm(1, 0)
-        else:
-            # 주요 상태만 주기적으로 출력 (거래량이 클 때)
-            if self.total_volume_1min > 1000000:  # 100만 이상일 때만
-                print(f"[{current_time}] 📈 1분 누적: {self.total_volume_1min:,.0f} KRW ({self.trade_count_1min}건)")
 
     async def handle_message(self, message):
         """WebSocket 메시지 처리"""
@@ -136,7 +142,8 @@ class RealTimeTradeMonitor:
                 self.print_status(latest_trade)
 
             elif data.get('responseType') == 'PONG':
-                print("🏓 Pong 수신")
+                # Pong 수신 시 조용히 처리 (불필요한 출력 제거)
+                pass
 
         except json.JSONDecodeError:
             print(f"❌ JSON 파싱 실패: {message}")
@@ -170,7 +177,8 @@ class RealTimeTradeMonitor:
     async def run(self):
         """메인 실행 함수"""
         print(f"🚀 CRO 실시간 체결내역 모니터링 시작")
-        print(f"📊 1분간 누적 거래량이 {ALERT_VOLUME_KRW:,} KRW 이상시 알림")
+        print(f"💰 체결가가 나타날 때마다 실시간 표시")
+        print(f"🚨 1분간 체결액 총합이 {ALERT_VOLUME_KRW:,} KRW 이상시 알림")
         print("="*60)
 
         while True:
