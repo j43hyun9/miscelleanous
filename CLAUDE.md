@@ -34,14 +34,17 @@ This project uses the Coinone Chart API:
 
 The volume monitoring system operates with:
 - **Check Interval**: Every 10 seconds (configurable via `CHECK_INTERVAL`)
-- **Alert Condition**: Triggers when current 1-minute volume exceeds 10M KRW
-- **Data Source**: Coinone 1-minute candlestick data
-- **Real-time Monitoring**: Continuous monitoring with timestamped logs
+- **Alert Condition**: Triggers when 1-minute summed volume exceeds 10M KRW
+- **Data Source**: Primary: 10-second candlestick data (6 candles = 1 minute), Fallback: 1-minute candlestick data
+- **Volume Calculation**: Sums 6 consecutive 10-second intervals for precise 1-minute volume
+- **Real-time Monitoring**: Continuous monitoring with detailed timestamped logs
 
 **Key Configuration:**
 - `TICKER`: Target cryptocurrency (currently "cro")
 - `ALERT_VOLUME_KRW`: Volume threshold for alerts (default: 10M KRW)
 - `CHECK_INTERVAL`: Check frequency in seconds (default: 10 seconds)
+- `URL_10S`: 10-second interval API endpoint
+- `URL_1M`: 1-minute interval API endpoint (fallback)
 
 ## Usage Example
 
@@ -49,12 +52,22 @@ The volume monitoring system operates with:
 python cro_volume_monitor.py
 ```
 
-**Sample Output:**
+**Sample Output (10-second data mode):**
 ```
 🚀 CRO 거래량 모니터링 시작 (10초마다 체크, 10,000,000 KRW 이상 알림)
+📊 10초 간격 데이터를 합산하여 1분간 실제 거래량 계산
 ============================================================
-[2024-09-28 14:30:15] ✅ 정상 - 현재: 3,450,000 KRW, 이전: 2,890,000 KRW
-[2024-09-28 14:30:25] 🚨 대량 거래 감지! 현재 1분 거래량: 12,500,000 KRW
+[2024-09-28 14:30:15] ✅ 정상 - 1분 합산: 4,250,000 KRW (평균 10초당: 708,333)
+                      🔍 10초별: ['650,000', '720,000', '890,000', '680,000', '800,000', '510,000']
+[2024-09-28 14:30:25] 🚨 대량 거래 감지! 1분간 합산 거래량: 12,500,000 KRW
+                      📊 10초별 거래량: ['1,200,000', '2,800,000', '3,100,000', '2,200,000', '1,900,000', '1,300,000']
+                      📈 평균 10초당: 2,083,333 KRW
+```
+
+**Sample Output (1-minute fallback mode):**
+```
+[2024-09-28 14:30:35] ✅ 정상 - 현재: 3,450,000 KRW, 이전: 2,890,000 KRW
+[2024-09-28 14:30:45] 🚨 대량 거래 감지! 현재 1분 거래량: 12,500,000 KRW
                       📊 이전 1분 거래량: 3,450,000 KRW
 ```
 
